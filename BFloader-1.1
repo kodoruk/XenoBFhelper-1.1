@@ -1,0 +1,914 @@
+-- // Xeno Menu v2 — Tabs: Main / Conf
+-- // LocalScript в StarterPlayerScripts
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+local old = playerGui:FindFirstChild("XenoMenu")
+if old then old:Destroy() end
+
+-- =====================
+--  Глобальные настройки (управляются из вкладки Conf)
+-- =====================
+
+local Config = {
+    espUpdateRate = 0.1,       -- секунды между обновлениями ESP
+    infoUpdateRate = 0.1,      -- секунды между обновлениями инфо
+    pathRecordInterval = 0.1, -- секунды между записью точек пути
+    pathMinDistance = 2,       -- минимальное расстояние для новой точки
+    espMaxDistance = 500,     -- макс. дистанция ESP (студы)
+    infoMaxDistance = 300,    -- макс. дистанция инфо
+    espFillTransparency = 0.7,
+    heartbeatThrottle = 1,    -- 1 = каждый кадр, 2 = через кадр, 3 = каждый 3-й
+}
+
+-- =====================
+--  GUI: основная структура
+-- =====================
+
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "XenoMenu"
+screenGui.ResetOnSpawn = false
+screenGui.IgnoreGuiInset = true
+screenGui.Parent = playerGui
+
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 400, 0, 380)
+mainFrame.Position = UDim2.new(0.05, 0, 0.25, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(18, 18, 28)
+mainFrame.BorderSizePixel = 0
+mainFrame.Parent = screenGui
+
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 8)
+corner.Parent = mainFrame
+
+local stroke = Instance.new("UIStroke")
+stroke.Color = Color3.fromRGB(0, 204, 255)
+stroke.Thickness = 2
+stroke.Parent = mainFrame
+
+local strokeGradient = Instance.new("UIGradient")
+strokeGradient.Color = ColorSequence.new({
+    ColorSequenceKeypoint.new(0, Color3.fromRGB(0, 204, 255)),
+    ColorSequenceKeypoint.new(0.5, Color3.fromRGB(120, 0, 255)),
+    ColorSequenceKeypoint.new(1, Color3.fromRGB(0, 204, 255)),
+})
+strokeGradient.Parent = stroke
+
+-- =====================
+--  Шапка
+-- =====================
+
+local header = Instance.new("Frame")
+header.Size = UDim2.new(1, 0, 0, 36)
+header.BackgroundColor3 = Color3.fromRGB(10, 10, 18)
+header.BorderSizePixel = 0
+header.Parent = mainFrame
+
+local headerCorner = Instance.new("UICorner")
+headerCorner.CornerRadius = UDim.new(0, 8)
+headerCorner.Parent = header
+
+local title = Instance.new("TextLabel")
+title.Size = UDim2.new(1, -40, 1, 0)
+title.Position = UDim2.new(0, 10, 0, 0)
+title.BackgroundTransparency = 1
+title.Text = "Xeno Menu"
+title.TextColor3 = Color3.fromRGB(0, 204, 255)
+title.Font = Enum.Font.GothamBold
+title.TextSize = 14
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.Parent = header
+
+local toggleBtn = Instance.new("TextButton")
+toggleBtn.Size = UDim2.new(0, 24, 0, 24)
+toggleBtn.Position = UDim2.new(1, -30, 0.5, -12)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(0, 204, 255)
+toggleBtn.Text = "—"
+toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleBtn.Font = Enum.Font.GothamBold
+toggleBtn.TextSize = 16
+toggleBtn.Parent = header
+
+local toggleCorner = Instance.new("UICorner")
+toggleCorner.CornerRadius = UDim.new(0, 6)
+toggleCorner.Parent = toggleBtn
+
+-- =====================
+--  Левая панель вкладок
+-- =====================
+
+local sidebar = Instance.new("Frame")
+sidebar.Name = "Sidebar"
+sidebar.Size = UDim2.new(0, 90, 1, -36)
+sidebar.Position = UDim2.new(0, 0, 0, 36)
+sidebar.BackgroundColor3 = Color3.fromRGB(12, 12, 20)
+sidebar.BorderSizePixel = 0
+sidebar.Parent = mainFrame
+
+local sidebarLayout = Instance.new("UIListLayout")
+sidebarLayout.Padding = UDim.new(0, 4)
+sidebarLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+sidebarLayout.SortOrder = Enum.SortOrder.LayoutOrder
+sidebarLayout.Parent = sidebar
+
+local sidebarPadding = Instance.new("UIPadding")
+sidebarPadding.PaddingTop = UDim.new(0, 8)
+sidebarPadding.PaddingLeft = UDim.new(0, 4)
+sidebarPadding.PaddingRight = UDim.new(0, 4)
+sidebarPadding.Parent = sidebar
+
+-- Разделитель справа
+local sidebarSep = Instance.new("Frame")
+sidebarSep.Size = UDim2.new(0, 1, 1, 0)
+sidebarSep.Position = UDim2.new(1, -1, 0, 0)
+sidebarSep.BackgroundColor3 = Color3.fromRGB(40, 40, 60)
+sidebarSep.BorderSizePixel = 0
+sidebarSep.Parent = sidebar
+
+-- =====================
+--  Правая область контента
+-- =====================
+
+local contentArea = Instance.new("Frame")
+contentArea.Size = UDim2.new(1, -90, 1, -36)
+contentArea.Position = UDim2.new(0, 90, 0, 36)
+contentArea.BackgroundTransparency = 1
+contentArea.Parent = mainFrame
+
+-- Страница Main
+local mainPage = Instance.new("ScrollingFrame")
+mainPage.Name = "MainPage"
+mainPage.Size = UDim2.new(1, 0, 1, 0)
+mainPage.BackgroundTransparency = 1
+mainPage.ScrollBarThickness = 4
+mainPage.ScrollBarImageColor3 = Color3.fromRGB(0, 204, 255)
+mainPage.CanvasSize = UDim2.new(0, 0, 0, 0)
+mainPage.AutomaticCanvasSize = Enum.AutomaticSize.Y
+mainPage.Visible = true
+mainPage.Parent = contentArea
+
+local mainLayout = Instance.new("UIListLayout")
+mainLayout.Padding = UDim.new(0, 6)
+mainLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+mainLayout.Parent = mainPage
+
+local mainPadding = Instance.new("UIPadding")
+mainPadding.PaddingTop = UDim.new(0, 10)
+mainPadding.PaddingBottom = UDim.new(0, 10)
+mainPadding.PaddingLeft = UDim.new(0, 10)
+mainPadding.PaddingRight = UDim.new(0, 10)
+mainPadding.Parent = mainPage
+
+-- Страница Conf
+local confPage = Instance.new("ScrollingFrame")
+confPage.Name = "ConfPage"
+confPage.Size = UDim2.new(1, 0, 1, 0)
+confPage.BackgroundTransparency = 1
+confPage.ScrollBarThickness = 4
+confPage.ScrollBarImageColor3 = Color3.fromRGB(0, 204, 255)
+confPage.CanvasSize = UDim2.new(0, 0, 0, 0)
+confPage.AutomaticCanvasSize = Enum.AutomaticSize.Y
+confPage.Visible = false
+confPage.Parent = contentArea
+
+local confLayout = Instance.new("UIListLayout")
+confLayout.Padding = UDim.new(0, 6)
+confLayout.HorizontalAlignment = Enum.HorizontalAlignment.Center
+confLayout.Parent = confPage
+
+local confPadding = Instance.new("UIPadding")
+confPadding.PaddingTop = UDim.new(0, 10)
+confPadding.PaddingBottom = UDim.new(0, 10)
+confPadding.PaddingLeft = UDim.new(0, 10)
+confPadding.PaddingRight = UDim.new(0, 10)
+confPadding.Parent = confPage
+
+-- =====================
+--  Логика вкладок
+-- =====================
+
+local function createTab(name, page)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -8, 0, 32)
+    btn.BackgroundColor3 = Color3.fromRGB(25, 25, 40)
+    btn.BorderSizePixel = 0
+    btn.Text = name
+    btn.TextColor3 = Color3.fromRGB(150, 150, 170)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 12
+    btn.Parent = sidebar
+
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 6)
+    c.Parent = btn
+
+    local s = Instance.new("UIStroke")
+    s.Color = Color3.fromRGB(40, 40, 60)
+    s.Thickness = 1
+    s.Parent = btn
+
+    local active = false
+
+    local function setActive(state)
+        active = state
+        if active then
+            TweenService:Create(btn, TweenInfo.new(0.15), {
+                BackgroundColor3 = Color3.fromRGB(0, 204, 255),
+                TextColor3 = Color3.fromRGB(255, 255, 255)
+            }):Play()
+        else
+            TweenService:Create(btn, TweenInfo.new(0.15), {
+                BackgroundColor3 = Color3.fromRGB(25, 25, 40),
+                TextColor3 = Color3.fromRGB(150, 150, 170)
+            }):Play()
+        end
+    end
+
+    btn.MouseButton1Click:Connect(function()
+        mainPage.Visible = (page == "main")
+        confPage.Visible = (page == "conf")
+    end)
+
+    return btn, setActive
+end
+
+local tabMain, setTabMainActive = createTab("Main", "main")
+local tabConf, setTabConfActive = createTab("Conf", "conf")
+
+-- Активируем Main по умолчанию
+setTabMainActive(true)
+
+-- Клик по вкладке Conf
+tabConf.MouseButton1Click:Connect(function()
+    setTabMainActive(false)
+    setTabConfActive(true)
+end)
+
+-- Клик по вкладке Main
+tabMain.MouseButton1Click:Connect(function()
+    setTabConfActive(false)
+    setTabMainActive(true)
+end)
+
+-- =====================
+--  Вспомогательные функции кнопок
+-- =====================
+
+local function createToggleButton(parent, text)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -20, 0, 34)
+    btn.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+    btn.BorderSizePixel = 0
+    btn.Text = "[OFF]  " .. text
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.Gotham
+    btn.TextSize = 13
+    btn.Parent = parent
+
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 6)
+    c.Parent = btn
+
+    local s = Instance.new("UIStroke")
+    s.Color = Color3.fromRGB(50, 50, 70)
+    s.Thickness = 1
+    s.Parent = btn
+
+    local state = false
+
+    btn.MouseEnter:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(45, 45, 65)}):Play()
+    end)
+    btn.MouseLeave:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(30, 30, 45)}):Play()
+    end)
+
+    btn.MouseButton1Click:Connect(function()
+        state = not state
+        if state then
+            btn.Text = "[ON]   " .. text
+            btn.TextColor3 = Color3.fromRGB(0, 255, 120)
+            s.Color = Color3.fromRGB(0, 255, 120)
+        else
+            btn.Text = "[OFF]  " .. text
+            btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+            s.Color = Color3.fromRGB(50, 50, 70)
+        end
+    end)
+
+    local function getState() return state end
+    return btn, getState
+end
+
+local function createActionBtn(parent, text)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(1, -20, 0, 34)
+    btn.BackgroundColor3 = Color3.fromRGB(30, 30, 45)
+    btn.BorderSizePixel = 0
+    btn.Text = text
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    btn.Font = Enum.Font.Gotham
+    btn.TextSize = 13
+    btn.Parent = parent
+
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 6)
+    c.Parent = btn
+
+    local s = Instance.new("UIStroke")
+    s.Color = Color3.fromRGB(50, 50, 70)
+    s.Thickness = 1
+    s.Parent = btn
+
+    btn.MouseEnter:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(45, 45, 65)}):Play()
+    end)
+    btn.MouseLeave:Connect(function()
+        TweenService:Create(btn, TweenInfo.new(0.15), {BackgroundColor3 = Color3.fromRGB(30, 30, 45)}):Play()
+    end)
+
+    return btn
+end
+
+-- =====================
+--  Conf: элементы настройки
+-- =====================
+
+local function createConfLabel(text)
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(1, -20, 0, 20)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = text
+    lbl.TextColor3 = Color3.fromRGB(0, 204, 255)
+    lbl.Font = Enum.Font.GothamBold
+    lbl.TextSize = 12
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = confPage
+    return lbl
+end
+
+local function createConfCycle(text, values, defaultIdx, callback)
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, -20, 0, 34)
+    frame.BackgroundColor3 = Color3.fromRGB(25, 25, 38)
+    frame.BorderSizePixel = 0
+    frame.Parent = confPage
+
+    local c = Instance.new("UICorner")
+    c.CornerRadius = UDim.new(0, 6)
+    c.Parent = frame
+
+    local s = Instance.new("UIStroke")
+    s.Color = Color3.fromRGB(45, 45, 65)
+    s.Thickness = 1
+    s.Parent = frame
+
+    local lbl = Instance.new("TextLabel")
+    lbl.Size = UDim2.new(0.6, 0, 1, 0)
+    lbl.Position = UDim2.new(0, 10, 0, 0)
+    lbl.BackgroundTransparency = 1
+    lbl.Text = text
+    lbl.TextColor3 = Color3.fromRGB(200, 200, 215)
+    lbl.Font = Enum.Font.Gotham
+    lbl.TextSize = 12
+    lbl.TextXAlignment = Enum.TextXAlignment.Left
+    lbl.Parent = frame
+
+    local valBtn = Instance.new("TextButton")
+    valBtn.Size = UDim2.new(0, 70, 0, 24)
+    valBtn.Position = UDim2.new(1, -78, 0.5, -12)
+    valBtn.BackgroundColor3 = Color3.fromRGB(0, 204, 255)
+    valBtn.Text = tostring(values[defaultIdx])
+    valBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    valBtn.Font = Enum.Font.GothamBold
+    valBtn.TextSize = 12
+    valBtn.Parent = frame
+
+    local vc = Instance.new("UICorner")
+    vc.CornerRadius = UDim.new(0, 4)
+    vc.Parent = valBtn
+
+    local idx = defaultIdx
+
+    valBtn.MouseButton1Click:Connect(function()
+        idx = idx + 1
+        if idx > #values then idx = 1 end
+        valBtn.Text = tostring(values[idx])
+        callback(values[idx])
+    end)
+
+    return frame, valBtn
+end
+
+-- =====================
+--  Страница Conf — содержимое
+-- =====================
+
+createConfLabel("Частота обновления")
+
+createConfCycle("ESP Rate", {0.05, 0.1, 0.25, 0.5, 1.0}, 2, function(v)
+    Config.espUpdateRate = v
+end)
+
+createConfCycle("Info Rate", {0.05, 0.1, 0.25, 0.5, 1.0}, 2, function(v)
+    Config.infoUpdateRate = v
+end)
+
+createConfCycle("Path Record", {0.05, 0.1, 0.25, 0.5}, 2, function(v)
+    Config.pathRecordInterval = v
+end)
+
+createConfLabel("Дистанция рендера")
+
+createConfCycle("ESP Max Dist", {100, 300, 500, 1000, 9999}, 3, function(v)
+    Config.espMaxDistance = v
+end)
+
+createConfCycle("Info Max Dist", {100, 300, 500, 1000, 9999}, 2, function(v)
+    Config.infoMaxDistance = v
+end)
+
+createConfLabel("Прочее")
+
+createConfCycle("Path Min Gap", {1, 2, 5, 10}, 2, function(v)
+    Config.pathMinDistance = v
+end)
+
+createConfCycle("ESP Fill", {0.5, 0.7, 0.85, 0.95, 1.0}, 2, function(v)
+    Config.espFillTransparency = v
+    -- обновляем существующие ESP
+    for _, data in pairs(espHighlights) do
+        if data[1] and data[1]:IsA("Highlight") then
+            data[1].FillTransparency = v
+        end
+    end
+end)
+
+createConfCycle("HB Throttle", {1, 2, 3, 5}, 1, function(v)
+    Config.heartbetThrottle = v
+end)
+
+-- =====================
+--  Страница Main — кнопки
+-- =====================
+
+-- 1) ESP
+local espBtn, espOn = createToggleButton(mainPage, "ESP")
+local espHighlights = {}
+
+local function clearESP()
+    for _, h in pairs(espHighlights) do
+        if h and type(h) == "table" then
+            for _, obj in ipairs(h) do
+                if obj and obj.Parent then obj:Destroy() end
+            end
+        end
+    end
+    espHighlights = {}
+end
+
+local function setupESPForPlayer(p)
+    if p == player then return end
+    local char = p.Character
+    if not char then return end
+
+    local myRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+    local root = char:FindFirstChild("HumanoidRootPart")
+    if root and myRoot then
+        local dist = (root.Position - myRoot.Position).Magnitude
+        if dist > Config.espMaxDistance then return end
+    end
+
+    local hl = Instance.new("Highlight")
+    hl.Name = "XenoESP"
+    hl.FillColor = Color3.fromRGB(255, 0, 0)
+    hl.FillTransparency = Config.espFillTransparency
+    hl.OutlineColor = Color3.fromRGB(255, 50, 50)
+    hl.OutlineTransparency = 0
+    hl.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+    hl.Parent = char
+
+    local head = char:FindFirstChild("Head")
+    local bb = nil
+    if head then
+        bb = Instance.new("BillboardGui")
+        bb.Name = "XenoESPLabel"
+        bb.Size = UDim2.new(0, 150, 0, 40)
+        bb.StudsOffset = Vector3.new(0, 2, 0)
+        bb.AlwaysOnTop = true
+        bb.Parent = head
+
+        local lbl = Instance.new("TextLabel")
+        lbl.Size = UDim2.new(1, 0, 1, 0)
+        lbl.BackgroundTransparency = 1
+        lbl.Text = p.Name
+        lbl.TextColor3 = Color3.fromRGB(255, 50, 50)
+        lbl.Font = Enum.Font.GothamBold
+        lbl.TextSize = 14
+        lbl.Parent = bb
+    end
+
+    espHighlights[p] = {hl, bb}
+end
+
+local espConn, espTimer = nil, 0
+
+espBtn.MouseButton1Click:Connect(function()
+    if espOn() then
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= player then
+                p.CharacterAdded:Connect(function()
+                    task.wait(0.5)
+                    if espOn() then setupESPForPlayer(p) end
+                end)
+                if p.Character then setupESPForPlayer(p) end
+            end
+        end
+        -- Периодическое обновление с учётом конфига
+        espConn = RunService.Heartbeat:Connect(function(dt)
+            espTimer += dt
+            if espTimer >= Config.espUpdateRate then
+                espTimer = 0
+                clearESP()
+                for _, p in ipairs(Players:GetPlayers()) do
+                    if p ~= player and p.Character then
+                        setupESPForPlayer(p)
+                    end
+                end
+            end
+        end)
+    else
+        if espConn then espConn:Disconnect() espConn = nil end
+        clearESP()
+    end
+end)
+
+Players.PlayerRemoving:Connect(function(p)
+    if espHighlights[p] then
+        for _, obj in ipairs(espHighlights[p]) do
+            if obj and obj.Parent then obj:Destroy() end
+        end
+        espHighlights[p] = nil
+    end
+end)
+
+-- =====================
+--  2) God Mode
+-- =====================
+
+local godBtn, godOn = createToggleButton(mainPage, "God Mode")
+local godConn
+
+godBtn.MouseButton1Click:Connect(function()
+    if godOn() then
+        local char = player.Character
+        if char then
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum.MaxHealth = math.huge
+                hum.Health = math.huge
+            end
+        end
+        godConn = RunService.Heartbeat:Connect(function()
+            local c = player.Character
+            if c then
+                local h = c:FindFirstChildOfClass("Humanoid")
+                if h then h.Health = h.MaxHealth end
+            end
+        end)
+        player.CharacterAdded:Connect(function(c)
+            task.wait(0.5)
+            local h = c:FindFirstChildOfClass("Humanoid")
+            if h and godOn() then
+                h.MaxHealth = math.huge
+                h.Health = math.huge
+            end
+        end)
+    else
+        if godConn then godConn:Disconnect() godConn = nil end
+        local char = player.Character
+        if char then
+            local hum = char:FindFirstChildOfClass("Humanoid")
+            if hum then
+                hum.MaxHealth = 100
+                hum.Health = 100
+            end
+        end
+    end
+end)
+
+-- =====================
+--  3) Path Recorder
+-- =====================
+
+local pathRecBtn, pathRecOn = createToggleButton(mainPage, "Record Path")
+local buildBtn = createActionBtn(mainPage, "Build Path (Line)")
+local clearPathBtn = createActionBtn(mainPage, "Clear Path")
+
+local recordedPoints = {}
+local pathConn = nil
+local pathVisuals = {}
+
+local function clearPathVisuals()
+    for _, v in pairs(pathVisuals) do
+        if v and v.Parent then v:Destroy() end
+    end
+    pathVisuals = {}
+end
+
+pathRecBtn.MouseButton1Click:Connect(function()
+    if pathRecOn() then
+        recordedPoints = {}
+        local timer = 0
+        pathConn = RunService.Heartbeat:Connect(function(dt)
+            timer += dt
+            if timer >= Config.pathRecordInterval then
+                timer = 0
+                local char = player.Character
+                if char and char:FindFirstChild("HumanoidRootPart") then
+                    local pos = char.HumanoidRootPart.Position
+                    if #recordedPoints == 0 or (recordedPoints[#recordedPoints] - pos).Magnitude > Config.pathMinDistance then
+                        table.insert(recordedPoints, pos)
+                    end
+                end
+            end
+        end)
+    else
+        if pathConn then pathConn:Disconnect() pathConn = nil end
+    end
+end)
+
+buildBtn.MouseButton1Click:Connect(function()
+    clearPathVisuals()
+    if #recordedPoints < 2 then return end
+
+    local pathFolder = Instance.new("Folder")
+    pathFolder.Name = "XenoPath"
+    pathFolder.Parent = Workspace
+    table.insert(pathVisuals, pathFolder)
+
+    for i = 1, #recordedPoints - 1 do
+        local p1 = recordedPoints[i]
+        local p2 = recordedPoints[i + 1]
+        local dist = (p2 - p1).Magnitude
+        local mid = (p1 + p2) / 2
+
+        local part = Instance.new("Part")
+        part.Anchored = true
+        part.CanCollide = false
+        part.Material = Enum.Material.Neon
+        part.Color = Color3.fromRGB(0, 255, 150)
+        part.Size = Vector3.new(0.2, 0.2, dist)
+        part.CFrame = CFrame.lookAt(mid, p2)
+        part.Parent = pathFolder
+        table.insert(pathVisuals, part)
+
+        local marker = Instance.new("Part")
+        marker.Anchored = true
+        marker.CanCollide = false
+        marker.Material = Enum.Material.Neon
+        marker.Color = Color3.fromRGB(255, 200, 0)
+        marker.Size = Vector3.new(0.5, 0.5, 0.5)
+        marker.Position = p1
+        marker.Parent = pathFolder
+        table.insert(pathVisuals, marker)
+    end
+
+    local lastMarker = Instance.new("Part")
+    lastMarker.Anchored = true
+    lastMarker.CanCollide = false
+    lastMarker.Material = Enum.Material.Neon
+    lastMarker.Color = Color3.fromRGB(255, 200, 0)
+    lastMarker.Size = Vector3.new(0.5, 0.5, 0.5)
+    lastMarker.Position = recordedPoints[#recordedPoints]
+    lastMarker.Parent = pathFolder
+    table.insert(pathVisuals, lastMarker)
+end)
+
+clearPathBtn.MouseButton1Click:Connect(function()
+    clearPathVisuals()
+    recordedPoints = {}
+end)
+
+-- =====================
+--  4) Player Info
+-- =====================
+
+local infoBtn, infoOn = createToggleButton(mainPage, "Player Info")
+local infoLabels = {}
+local infoConn, infoTimer = nil, 0
+
+local function clearInfoLabels()
+    for _, v in pairs(infoLabels) do
+        if v and v.bb and v.bb.Parent then v.bb:Destroy() end
+    end
+    infoLabels = {}
+end
+
+local function createInfoLabel(p)
+    if p == player then return end
+
+    local bb = Instance.new("BillboardGui")
+    bb.Name = "XenoInfo_" .. p.Name
+    bb.Size = UDim2.new(0, 220, 0, 90)
+    bb.StudsOffset = Vector3.new(0, 3, 0)
+    bb.AlwaysOnTop = true
+
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(1, 0, 1, 0)
+    frame.BackgroundColor3 = Color3.fromRGB(15, 15, 25)
+    frame.BackgroundTransparency = 0.1
+    frame.Parent = bb
+
+    local fs = Instance.new("UIStroke")
+    fs.Color = Color3.fromRGB(0, 204, 255)
+    fs.Thickness = 1.5
+    fs.Parent = frame
+
+    local fc = Instance.new("UICorner")
+    fc.CornerRadius = UDim.new(0, 4)
+    fc.Parent = frame
+
+    local textLbl = Instance.new("TextLabel")
+    textLbl.Size = UDim2.new(1, -10, 1, -10)
+    textLbl.Position = UDim2.new(0, 5, 0, 5)
+    textLbl.BackgroundTransparency = 1
+    textLbl.Text = ""
+    textLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
+    textLbl.Font = Enum.Font.Gotham
+    textLbl.TextSize = 11
+    textLbl.TextWrapped = true
+    textLbl.TextYAlignment = Enum.TextYAlignment.Top
+    textLbl.Parent = frame
+
+    infoLabels[p] = {bb = bb, label = textLbl}
+end
+
+local function updateInfoLabels()
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= player then
+            if not infoLabels[p] then createInfoLabel(p) end
+            local data = infoLabels[p]
+            if not data then return end
+
+            if p.Character then
+                local char = p.Character
+                local head = char:FindFirstChild("Head")
+                local hum = char:FindFirstChildOfClass("Humanoid")
+                local root = char:FindFirstChild("HumanoidRootPart")
+
+                if head and hum and root then
+                    local myRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+                    local dist = myRoot and (root.Position - myRoot.Position).Magnitude or 0
+
+                    if dist > Config.infoMaxDistance then
+                        data.bb.Parent = nil
+                        return
+                    end
+
+                    if data.bb.Parent ~= head then
+                        data.bb.Parent = head
+                    end
+
+                    local heldItem = "пусто"
+                    for _, item in ipairs(char:GetChildren()) do
+                        if item:IsA("Tool") then heldItem = item.Name break end
+                    end
+
+                    local hp = math.floor(hum.Health)
+                    local maxHp = math.floor(hum.MaxHealth)
+                    local lookDir = head.CFrame.LookVector
+                    local angle = math.deg(math.atan2(lookDir.X, -lookDir.Z))
+                    if angle < 0 then angle += 360 end
+
+                    data.label.Text = string.format(
+                        "%s\nHP: %d / %d\n: %s\n: %d\n: %d\n: %d",
+                        p.DisplayName or p.Name,
+                        hp, maxHp,
+                        heldItem,
+                        math.floor(angle),
+                        math.floor(dist),
+                        math.floor(hum.WalkSpeed)
+                    )
+                end
+            else
+                data.bb.Parent = nil
+            end
+        end
+    end
+end
+
+infoBtn.MouseButton1Click:Connect(function()
+    if infoOn() then
+        for _, p in ipairs(Players:GetPlayers()) do
+            if p ~= player then createInfoLabel(p) end
+        end
+        infoConn = RunService.Heartbeat:Connect(function(dt)
+            infoTimer += dt
+            if infoTimer >= Config.infoUpdateRate then
+                infoTimer = 0
+                updateInfoLabels()
+            end
+        end)
+    else
+        if infoConn then infoConn:Disconnect() infoConn = nil end
+        clearInfoLabels()
+    end
+end)
+
+Players.PlayerRemoving:Connect(function(p)
+    if infoLabels[p] then
+        if infoLabels[p].bb then infoLabels[p].bb:Destroy() end
+        infoLabels[p] = nil
+    end
+end)
+
+-- =====================
+--  Перетаскивание
+-- =====================
+
+local dragging = false
+local dragStart, startPos
+
+header.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+    or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = mainFrame.Position
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement
+    or input.UserInputType == Enum.UserInputType.Touch) then
+        local delta = input.Position - dragStart
+        mainFrame.Position = UDim2.new(
+            startPos.X.Scale, startPos.X.Offset + delta.X,
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y
+        )
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1
+    or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = false
+    end
+end)
+
+-- =====================
+--  Сворачивание
+-- =====================
+
+local collapsed = false
+local expandedSize = UDim2.new(0, 400, 0, 380)
+local collapsedSize = UDim2.new(0, 50, 0, 50)
+
+toggleBtn.MouseButton1Click:Connect(function()
+    collapsed = not collapsed
+    if collapsed then
+        TweenService:Create(mainFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {
+            Size = collapsedSize
+        }):Play()
+        sidebar.Visible = false
+        contentArea.Visible = false
+        title.Visible = false
+        toggleBtn.Text = "+"
+        TweenService:Create(toggleBtn, TweenInfo.new(0.25), {
+            Position = UDim2.new(0.5, -12, 0.5, -12),
+        }):Play()
+    else
+        TweenService:Create(mainFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.InOut), {
+            Size = expandedSize
+        }):Play()
+        sidebar.Visible = true
+        contentArea.Visible = true
+        title.Visible = true
+        toggleBtn.Text = "—"
+        TweenService:Create(toggleBtn, TweenInfo.new(0.25), {
+            Position = UDim2.new(1, -30, 0.5, -12),
+        }):Play()
+    end
+end)
+
+-- =====================
+--  Hover
+-- =====================
+
+mainFrame.MouseEnter:Connect(function()
+    TweenService:Create(stroke, TweenInfo.new(0.2), {Thickness = 2.5}):Play()
+end)
+
+mainFrame.MouseLeave:Connect(function()
+    TweenService:Create(stroke, TweenInfo.new(0.2), {Thickness = 2}):Play()
+end)
